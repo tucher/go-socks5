@@ -48,6 +48,8 @@ type Config struct {
 
 	// Optional function for dialing out
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	ConnLimit int
 }
 
 // Server is reponsible for accepting connections and handling
@@ -55,6 +57,7 @@ type Config struct {
 type Server struct {
 	config      *Config
 	authMethods map[uint8]Authenticator
+	sema        chan struct{}
 }
 
 // New creates a new Server and potentially returns an error
@@ -83,8 +86,12 @@ func New(conf *Config) (*Server, error) {
 		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
 	}
 
+	if conf.ConnLimit == 0 {
+		conf.ConnLimit = 50000
+	}
 	server := &Server{
 		config: conf,
+		sema:   make(chan struct{}, conf.ConnLimit),
 	}
 
 	server.authMethods = make(map[uint8]Authenticator)
@@ -120,6 +127,15 @@ func (s *Server) Serve(l net.Listener) error {
 // ServeConn is used to serve a single connection.
 func (s *Server) ServeConn(conn net.Conn) error {
 	defer conn.Close()
+	select {
+	case s.sema <- struct{}{}:
+	default:
+		err := fmt.Errorf("Failed to handle request: exhausted")
+		s.config.Logger.Printf("[ERR] socks: %v", err)
+		return err
+	}
+	defer func() { <-s.sema }()
+
 	bufConn := bufio.NewReader(conn)
 
 	// Read the version byte
