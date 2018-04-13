@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync/atomic"
 
 	"golang.org/x/net/context"
 )
@@ -58,6 +59,7 @@ type Server struct {
 	config      *Config
 	authMethods map[uint8]Authenticator
 	sema        chan struct{}
+	ConnCount   int64
 }
 
 // New creates a new Server and potentially returns an error
@@ -112,6 +114,11 @@ func (s *Server) ListenAndServe(network, addr string) error {
 	return s.Serve(l)
 }
 
+// GetConnCount returns connection count
+func (s *Server) GetConnCount() int64 {
+	return atomic.LoadInt64(&s.ConnCount)
+}
+
 // Serve is used to serve connections from a listener
 func (s *Server) Serve(l net.Listener) error {
 	for {
@@ -134,7 +141,11 @@ func (s *Server) ServeConn(conn net.Conn) error {
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err
 	}
-	defer func() { <-s.sema }()
+	defer func() {
+		<-s.sema
+		atomic.AddInt64(&s.ConnCount, -1)
+	}()
+	atomic.AddInt64(&s.ConnCount, 1)
 
 	bufConn := bufio.NewReader(conn)
 
