@@ -56,10 +56,11 @@ type Config struct {
 // Server is reponsible for accepting connections and handling
 // the details of the SOCKS5 protocol
 type Server struct {
-	config      *Config
-	authMethods map[uint8]Authenticator
-	sema        chan struct{}
-	ConnCount   int64
+	config        *Config
+	authMethods   map[uint8]Authenticator
+	sema          chan struct{}
+	ConnCountChan chan int64
+	ConnCount     int64
 }
 
 // New creates a new Server and potentially returns an error
@@ -92,8 +93,9 @@ func New(conf *Config) (*Server, error) {
 		conf.ConnLimit = 50000
 	}
 	server := &Server{
-		config: conf,
-		sema:   make(chan struct{}, conf.ConnLimit),
+		config:        conf,
+		sema:          make(chan struct{}, conf.ConnLimit),
+		ConnCountChan: make(chan int64),
 	}
 
 	server.authMethods = make(map[uint8]Authenticator)
@@ -117,6 +119,11 @@ func (s *Server) ListenAndServe(network, addr string) error {
 // GetConnCount returns connection count
 func (s *Server) GetConnCount() int64 {
 	return atomic.LoadInt64(&s.ConnCount)
+}
+
+// GetConnCountChan returns channel where every change in conn count is pushed to
+func (s *Server) GetConnCountChan() chan int64 {
+	return s.ConnCountChan
 }
 
 // Serve is used to serve connections from a listener
@@ -144,8 +151,16 @@ func (s *Server) ServeConn(conn net.Conn) error {
 	defer func() {
 		<-s.sema
 		atomic.AddInt64(&s.ConnCount, -1)
+		select {
+		case s.ConnCountChan <- s.GetConnCount():
+		default:
+		}
 	}()
 	atomic.AddInt64(&s.ConnCount, 1)
+	select {
+	case s.ConnCountChan <- s.GetConnCount():
+	default:
+	}
 
 	bufConn := bufio.NewReader(conn)
 
