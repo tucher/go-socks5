@@ -198,19 +198,15 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 	}
 
 	// Start proxying
-	errCh := make(chan error, 2)
-	go proxy(target, req.bufConn, errCh)
-	go proxy(conn, target, errCh)
-
-	// Wait
-	for i := 0; i < 2; i++ {
-		e := <-errCh
-		if e != nil {
-			// return from this function closes target (and conn).
-			return e
-		}
+	errCh1, errCh2 := make(chan error), make(chan error)
+	go proxy(target, req.bufConn, errCh1)
+	go proxy(conn, target, errCh2)
+	select {
+	case e := <-errCh1:
+		return e
+	case e := <-errCh2:
+		return e
 	}
-	return nil
 }
 
 // handleBind is used to handle a connect command
