@@ -113,7 +113,7 @@ func (s *Server) ListenAndServe(network, addr string) error {
 	if err != nil {
 		return err
 	}
-	return s.Serve(l)
+	s.Serve(l)
 }
 
 // GetConnCount returns connection count
