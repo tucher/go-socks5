@@ -111,7 +111,7 @@ func New(conf *Config) (*Server, error) {
 func (s *Server) ListenAndServe(network, addr string) {
 	l, err := net.Listen(network, addr)
 	if err != nil {
-		return err
+		return
 	}
 	s.Serve(l)
 }
