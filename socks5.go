@@ -135,6 +135,7 @@ func (s *Server) Serve(l net.Listener) {
 		if err != nil {
 			s.config.Logger.Printf("[ERR] socks: %v", err)
 		} else {
+			conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 			go s.ServeConn(conn)
 		}
 	}
