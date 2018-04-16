@@ -127,13 +127,14 @@ func (s *Server) GetConnCountChan() chan int64 {
 }
 
 // Serve is used to serve connections from a listener
-func (s *Server) Serve(l net.Listener) error {
+func (s *Server) Serve(l net.Listener) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			return err
+			s.config.Logger.Printf("[ERR] socks: %v", err)
+		} else {
+			go s.ServeConn(conn)
 		}
-		go s.ServeConn(conn)
 	}
 }
 
@@ -141,7 +142,7 @@ func (s *Server) Serve(l net.Listener) error {
 func (s *Server) ServeConn(conn net.Conn) error {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
+			s.config.Logger.Printf("[ERR] socks: Panic recovered: %v", r)
 		}
 	}()
 	defer conn.Close()
