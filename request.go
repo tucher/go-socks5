@@ -158,7 +158,7 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 		if err := sendReply(clientConn, ruleFailure, nil); err != nil {
 			return fmt.Errorf("Failed to send reply: %v", err)
 		}
-		return fmt.Errorf("Connect to %v blocked by rules", req.DestAddr)
+		return nil //fmt.Errorf("Connect to %v blocked by rules", req.DestAddr)
 	} else {
 		ctx = ctx_
 	}
