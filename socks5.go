@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/net/context"
 )
@@ -51,6 +52,7 @@ type Config struct {
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	ConnLimit int
+	Timeout   time.Duration
 }
 
 // Server is reponsible for accepting connections and handling
