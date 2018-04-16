@@ -359,6 +359,8 @@ func proxy(dst net.Conn, src net.Conn, errCh chan error, timeout time.Duration) 
 				src.SetDeadline(time.Now().Add(timeout))
 				continue
 			}
+			errCh <- nil
+			return
 		}
 		errCh <- err
 		return
