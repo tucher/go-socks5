@@ -349,14 +349,12 @@ type closeWriter interface {
 // proxy is used to suffle data from src to destination, and sends errors
 // down a dedicated channel
 func proxy(dst net.Conn, src net.Conn, errCh chan error, timeout time.Duration) {
-	dst.SetDeadline(time.Now().Add(timeout))
-	src.SetDeadline(time.Now().Add(timeout))
+	src.SetReadDeadline(time.Now().Add(timeout))
 	for {
 		n, err := io.Copy(dst, src)
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			if n > 0 {
-				dst.SetDeadline(time.Now().Add(timeout))
-				src.SetDeadline(time.Now().Add(timeout))
+				src.SetReadDeadline(time.Now().Add(timeout))
 				continue
 			}
 			errCh <- nil
