@@ -51,8 +51,9 @@ type Config struct {
 	// Optional function for dialing out
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 
-	ConnLimit int
-	Timeout   time.Duration
+	ConnLimit      int
+	IdleTimeout    time.Duration
+	ConnectTimeout time.Duration
 }
 
 // Server is reponsible for accepting connections and handling
@@ -135,7 +136,7 @@ func (s *Server) Serve(l net.Listener) {
 		if err != nil {
 			s.config.Logger.Printf("[ERR] socks: %v", err)
 		} else {
-			conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+			conn.SetReadDeadline(time.Now().Add(s.config.ConnectTimeout))
 			go s.ServeConn(conn)
 		}
 	}

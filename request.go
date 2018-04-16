@@ -196,8 +196,8 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 	// Start proxying
 	errCh1, errCh2 := make(chan error), make(chan error)
 
-	go proxy(serverConn, clientConn, errCh1, s.config.Timeout)
-	go proxy(clientConn, serverConn, errCh2, s.config.Timeout)
+	go proxy(serverConn, clientConn, errCh1, s.config.IdleTimeout)
+	go proxy(clientConn, serverConn, errCh2, s.config.IdleTimeout)
 	select {
 	case e := <-errCh1:
 		return e
