@@ -350,11 +350,13 @@ type closeWriter interface {
 // down a dedicated channel
 func proxy(dst net.Conn, src net.Conn, errCh chan error, timeout time.Duration) {
 	src.SetReadDeadline(time.Now().Add(timeout))
+	dst.SetWriteDeadline(time.Now().Add(timeout))
 	for {
 		n, err := io.Copy(dst, src)
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			if n > 0 {
 				src.SetReadDeadline(time.Now().Add(timeout))
+				dst.SetWriteDeadline(time.Now().Add(timeout))
 				continue
 			}
 			errCh <- nil
