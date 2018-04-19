@@ -167,7 +167,7 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 	dial := s.config.Dial
 	if dial == nil {
 		dial = func(ctx context.Context, net_, addr string) (net.Conn, error) {
-			return net.Dial(net_, addr)
+			return net.DialTimeout(net_, addr, s.config.ConnectTimeout)
 		}
 	}
 	serverConn, err := dial(ctx, "tcp", req.realDestAddr.Address())
@@ -194,7 +194,7 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 	}
 
 	// Start proxying
-	errCh1, errCh2 := make(chan error), make(chan error)
+	errCh1, errCh2 := make(chan error, 1), make(chan error, 1)
 
 	go proxy(serverConn, clientConn, errCh1, s.config.IdleTimeout)
 	go proxy(clientConn, serverConn, errCh2, s.config.IdleTimeout)
@@ -203,6 +203,27 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 		return e
 	case e := <-errCh2:
 		return e
+	}
+}
+
+// proxy is used to suffle data from src to destination, and sends errors
+// down a dedicated channel
+func proxy(dst net.Conn, src net.Conn, errCh chan error, timeout time.Duration) {
+	src.SetReadDeadline(time.Now().Add(timeout))
+	dst.SetWriteDeadline(time.Now().Add(timeout))
+	for {
+		n, err := io.Copy(dst, src)
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			if n > 0 {
+				src.SetReadDeadline(time.Now().Add(timeout))
+				dst.SetWriteDeadline(time.Now().Add(timeout))
+				continue
+			}
+			errCh <- nil
+			return
+		}
+		errCh <- err
+		return
 	}
 }
 
@@ -344,25 +365,4 @@ func sendReply(w io.Writer, resp uint8, addr *AddrSpec) error {
 
 type closeWriter interface {
 	CloseWrite() error
-}
-
-// proxy is used to suffle data from src to destination, and sends errors
-// down a dedicated channel
-func proxy(dst net.Conn, src net.Conn, errCh chan error, timeout time.Duration) {
-	src.SetReadDeadline(time.Now().Add(timeout))
-	dst.SetWriteDeadline(time.Now().Add(timeout))
-	for {
-		n, err := io.Copy(dst, src)
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			if n > 0 {
-				src.SetReadDeadline(time.Now().Add(timeout))
-				dst.SetWriteDeadline(time.Now().Add(timeout))
-				continue
-			}
-			errCh <- nil
-			return
-		}
-		errCh <- err
-		return
-	}
 }
