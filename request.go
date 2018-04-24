@@ -198,6 +198,18 @@ func (s *Server) handleConnect(ctx context.Context, clientConn net.Conn, req *Re
 
 	go proxy(serverConn, clientConn, errCh1, s.config.IdleTimeout)
 	go proxy(clientConn, serverConn, errCh2, s.config.IdleTimeout)
+
+	host, port, _ := net.SplitHostPort(clientConn.RemoteAddr().String())
+	defer func(startTime time.Time) {
+		select {
+		case s.FinishedConnChan <- FinishedConnInfo{
+			IP:       host,
+			Port:     port,
+			Duration: time.Since(startTime),
+		}:
+		default:
+		}
+	}(time.Now())
 	select {
 	case e := <-errCh1:
 		return e

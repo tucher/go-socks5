@@ -163,18 +163,7 @@ func (s *Server) ServeConn(conn net.Conn) error {
 			s.config.Logger.Printf("[ERR] socks: Panic recovered: %v", r)
 		}
 	}()
-	defer func(startTime time.Time) {
-		conn.Close()
-		host, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
-		select {
-		case s.FinishedConnChan <- FinishedConnInfo{
-			IP:       host,
-			Port:     port,
-			Duration: time.Since(startTime),
-		}:
-		default:
-		}
-	}(time.Now())
+	defer conn.Close()
 	select {
 	case s.sema <- struct{}{}:
 	default:
