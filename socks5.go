@@ -56,14 +56,22 @@ type Config struct {
 	ConnectTimeout time.Duration
 }
 
+// FinishedConnInfo contains information about finished connection
+type FinishedConnInfo struct {
+	IP       string
+	Port     string
+	Duration time.Duration
+}
+
 // Server is reponsible for accepting connections and handling
 // the details of the SOCKS5 protocol
 type Server struct {
-	config        *Config
-	authMethods   map[uint8]Authenticator
-	sema          chan struct{}
-	ConnCountChan chan int64
-	ConnCount     int64
+	config           *Config
+	authMethods      map[uint8]Authenticator
+	sema             chan struct{}
+	ConnCountChan    chan int64
+	ConnCount        int64
+	FinishedConnChan chan FinishedConnInfo
 }
 
 // New creates a new Server and potentially returns an error
@@ -96,9 +104,10 @@ func New(conf *Config) (*Server, error) {
 		conf.ConnLimit = 50000
 	}
 	server := &Server{
-		config:        conf,
-		sema:          make(chan struct{}, conf.ConnLimit),
-		ConnCountChan: make(chan int64),
+		config:           conf,
+		sema:             make(chan struct{}, conf.ConnLimit),
+		ConnCountChan:    make(chan int64),
+		FinishedConnChan: make(chan FinishedConnInfo),
 	}
 
 	server.authMethods = make(map[uint8]Authenticator)
@@ -129,6 +138,11 @@ func (s *Server) GetConnCountChan() chan int64 {
 	return s.ConnCountChan
 }
 
+// GetFinishedConnChan returns channel where every finished conn info is pushed to
+func (s *Server) GetFinishedConnChan() chan FinishedConnInfo {
+	return s.FinishedConnChan
+}
+
 // Serve is used to serve connections from a listener
 func (s *Server) Serve(l net.Listener) {
 	for {
@@ -149,7 +163,18 @@ func (s *Server) ServeConn(conn net.Conn) error {
 			s.config.Logger.Printf("[ERR] socks: Panic recovered: %v", r)
 		}
 	}()
-	defer conn.Close()
+	defer func(startTime time.Time) {
+		conn.Close()
+		host, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
+		select {
+		case s.FinishedConnChan <- FinishedConnInfo{
+			IP:       host,
+			Port:     port,
+			Duration: time.Since(startTime),
+		}:
+		default:
+		}
+	}(time.Now())
 	select {
 	case s.sema <- struct{}{}:
 	default:
