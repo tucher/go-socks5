@@ -120,12 +120,19 @@ func New(conf *Config) (*Server, error) {
 }
 
 // ListenAndServe is used to create a listener and serve on it
-func (s *Server) ListenAndServe(network, addr string) {
-	l, err := net.Listen(network, addr)
-	if err != nil {
-		return
+func (s *Server) ListenAndServe(network string, addresses []string) {
+	for _, addr := range addresses[1:] {
+		if l, err := net.Listen(network, addr); err != nil {
+			s.config.Logger.Println(err)
+		} else {
+			go s.Serve(l)
+		}
 	}
-	s.Serve(l)
+	if l, err := net.Listen(network, addresses[0]); err != nil {
+		s.config.Logger.Println(err)
+	} else {
+		s.Serve(l)
+	}
 }
 
 // GetConnCount returns connection count
