@@ -33,7 +33,7 @@ type AuthContext struct {
 }
 
 type Authenticator interface {
-	Authenticate(reader io.Reader, writer io.Writer) (*AuthContext, error)
+	Authenticate(reader io.Reader, writer net.Conn) (*AuthContext, error)
 	GetCode() uint8
 }
 
@@ -44,7 +44,7 @@ func (a NoAuthAuthenticator) GetCode() uint8 {
 	return NoAuth
 }
 
-func (a NoAuthAuthenticator) Authenticate(reader io.Reader, writer io.Writer) (*AuthContext, error) {
+func (a NoAuthAuthenticator) Authenticate(reader io.Reader, writer net.Conn) (*AuthContext, error) {
 	_, err := writer.Write([]byte{socks5Version, NoAuth})
 	return &AuthContext{NoAuth, nil}, err
 }
@@ -59,7 +59,7 @@ func (a UserPassAuthenticator) GetCode() uint8 {
 	return UserPassAuth
 }
 
-func (a UserPassAuthenticator) Authenticate(reader io.Reader, writer io.Writer) (*AuthContext, error) {
+func (a UserPassAuthenticator) Authenticate(reader io.Reader, writer net.Conn) (*AuthContext, error) {
 	// Tell the client to use user/pass auth
 	if _, err := writer.Write([]byte{socks5Version, UserPassAuth}); err != nil {
 		return nil, err
