@@ -63,15 +63,25 @@ type FinishedConnInfo struct {
 	Duration time.Duration
 }
 
+// AuthFailedInfo provides information about failed auth attempt
+type AuthFailedInfo struct {
+	IP        string
+	Port      string
+	Reason    []byte
+	Timestamp time.Time
+	Error     error
+}
+
 // Server is reponsible for accepting connections and handling
 // the details of the SOCKS5 protocol
 type Server struct {
-	config           *Config
-	authMethods      map[uint8]Authenticator
-	sema             chan struct{}
-	ConnCountChan    chan int64
-	ConnCount        int64
-	FinishedConnChan chan FinishedConnInfo
+	config             *Config
+	authMethods        map[uint8]Authenticator
+	sema               chan struct{}
+	ConnCountChan      chan int64
+	ConnCount          int64
+	FinishedConnChan   chan FinishedConnInfo
+	AuthFailedInfoChan chan AuthFailedInfo
 }
 
 // New creates a new Server and potentially returns an error
@@ -104,10 +114,11 @@ func New(conf *Config) (*Server, error) {
 		conf.ConnLimit = 50000
 	}
 	server := &Server{
-		config:           conf,
-		sema:             make(chan struct{}, conf.ConnLimit),
-		ConnCountChan:    make(chan int64),
-		FinishedConnChan: make(chan FinishedConnInfo),
+		config:             conf,
+		sema:               make(chan struct{}, conf.ConnLimit),
+		ConnCountChan:      make(chan int64),
+		FinishedConnChan:   make(chan FinishedConnInfo),
+		AuthFailedInfoChan: make(chan AuthFailedInfo),
 	}
 
 	server.authMethods = make(map[uint8]Authenticator)
@@ -148,6 +159,11 @@ func (s *Server) GetConnCountChan() chan int64 {
 // GetFinishedConnChan returns channel where every finished conn info is pushed to
 func (s *Server) GetFinishedConnChan() chan FinishedConnInfo {
 	return s.FinishedConnChan
+}
+
+// GetAuthFailedInfoChan returns channel where every auth failed info is pushed to
+func (s *Server) GetAuthFailedInfoChan() chan AuthFailedInfo {
+	return s.AuthFailedInfoChan
 }
 
 // Serve is used to serve connections from a listener

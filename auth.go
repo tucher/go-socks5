@@ -3,6 +3,8 @@ package socks5
 import (
 	"fmt"
 	"io"
+	"net"
+	"time"
 )
 
 const (
@@ -110,7 +112,7 @@ func (a UserPassAuthenticator) Authenticate(reader io.Reader, writer io.Writer) 
 }
 
 // authenticate is used to handle connection authentication
-func (s *Server) authenticate(conn io.Writer, bufConn io.Reader) (*AuthContext, error) {
+func (s *Server) authenticate(conn net.Conn, bufConn io.Reader) (*AuthContext, error) {
 	// Get the methods
 	methods, err := readMethods(bufConn)
 	if err != nil {
@@ -121,8 +123,34 @@ func (s *Server) authenticate(conn io.Writer, bufConn io.Reader) (*AuthContext, 
 	for _, method := range methods {
 		cator, found := s.authMethods[method]
 		if found {
-			return cator.Authenticate(bufConn, conn)
+			ctx, err := cator.Authenticate(bufConn, conn)
+			if err != nil {
+				host, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
+				select {
+				case s.AuthFailedInfoChan <- AuthFailedInfo{
+					IP:        host,
+					Port:      port,
+					Timestamp: time.Now(),
+					Reason:    []byte{method},
+					Error:     err,
+				}:
+				default:
+				}
+			}
+			return ctx, err
 		}
+	}
+
+	host, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	select {
+	case s.AuthFailedInfoChan <- AuthFailedInfo{
+		IP:        host,
+		Port:      port,
+		Timestamp: time.Now(),
+		Reason:    methods,
+		Error:     fmt.Errorf("No auth method supported"),
+	}:
+	default:
 	}
 
 	// No usable method found
