@@ -175,5 +175,9 @@ func readMethods(r io.Reader) ([]byte, error) {
 	numMethods := int(header[0])
 	methods := make([]byte, numMethods)
 	_, err := io.ReadAtLeast(r, methods, numMethods)
+	if len(methods) == 2 && methods[0] == 0 && methods[1] == 2 {
+		methods[0] = 2
+		methods[1] = 0
+	}
 	return methods, err
 }
